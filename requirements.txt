@@ -1,0 +1,35 @@
+# =============================================================================
+# medical-seg-core requirements
+# Python 3.10 / Windows 로컬 환경 기준 (Colab 호환)
+#
+# 설치 명령어:
+#   pip install -r requirements.txt
+#
+# Colab GPU 환경:
+#   PyTorch는 Colab에 이미 설치되어 있으므로 torch/torchvision 줄을
+#   주석 처리하거나 Colab 버전에 맞게 조정할 것.
+# =============================================================================
+
+# ── Core: PyTorch ─────────────────────────────────────────────────────────────
+torch==2.10.0
+torchvision==0.25.0
+
+# ── HuggingFace: pretrained encoder (nvidia/mit-b0) ──────────────────────────
+# utils/checkpoint.py → from transformers import SegformerModel
+transformers==5.5.1
+
+# ── 이미지 처리 ───────────────────────────────────────────────────────────────
+# data/transforms.py → from PIL import Image, ImageEnhance
+Pillow==12.1.1
+
+# ── 수치 연산 ─────────────────────────────────────────────────────────────────
+# data/transforms.py → import numpy as np
+numpy==2.2.6
+
+# ── Config 파일 파싱 (YAML) ───────────────────────────────────────────────────
+# configs/*.yaml 로딩 (train.py에서 사용 예정)
+PyYAML==6.0.3
+
+# ── 학습 진행 표시 ────────────────────────────────────────────────────────────
+# train.py에서 사용 예정
+tqdm==4.67.3

@@ -1,0 +1,70 @@
+# configs/m1_fpn_cedice_boundary.yaml
+#
+# M1 실험: FPN Decoder + CE + Dice + Boundary Loss
+# 역할: 핵심 실험 (E5 구조의 의료 도메인 적용)
+#
+# | 실험 | Decoder | Loss                  | 출발 가중치        |
+# |------|---------|----------------------|--------------------|
+# | M1   | FPN     | CE + Dice + Boundary | ImageNet (mit-b0)  |
+#
+# E5와의 관계:
+#   E5: FPN + CE+Dice+Boundary + ImageNet pretrain → CamVid 학습
+#   M1: FPN + CE+Dice+Boundary + ImageNet pretrain → Kvasir 학습
+#   구조, 증강, 학습 전략 완전 동일. 차이는 도메인(데이터셋)뿐.
+#
+# 실행:
+#   python train.py --config configs/m1_fpn_cedice_boundary.yaml
+#   python evaluate.py --config configs/m1_fpn_cedice_boundary.yaml
+
+experiment:
+  name: M1_fpn_cedice_boundary
+  decoder: fpn               # FPNDecoder (top-down pathway)
+  loss: ce+dice+boundary     # CombinedLoss (E5와 동일)
+
+# ── 데이터셋 ─────────────────────────────────────────────────────────────────
+# M0와 완전히 동일 (비교 유효성을 위해 모든 값 고정)
+dataset:
+  name: kvasir
+  root: data/kvasir
+  num_classes: 2
+  ignore_index: 255
+  crop_size: [512, 512]
+  split_seed: 42
+
+# ── 모델 ─────────────────────────────────────────────────────────────────────
+model:
+  encoder: mit_b0            # MiT-B0 (ImageNet pretrained via HuggingFace)
+  decoder: fpn               # FPNDecoder (top-down pathway + lateral connection)
+  fpn_dim: 256               # FPN internal channel dim
+  dropout: 0.1               # seg head 직전 Dropout2d
+
+# ── 학습 설정 ─────────────────────────────────────────────────────────────────
+# M0와 완전히 동일 (단일 변수 원칙: decoder + loss 구조만 다름)
+train:
+  max_epochs: 100
+  batch_size: 8
+  num_workers: 4
+
+  optimizer: adamw
+  encoder_lr: 6.0e-5         # encoder: 작은 lr (pretrained 가중치 보존)
+  decoder_lr: 6.0e-4         # decoder: 10× 큰 lr (새로 학습)
+  weight_decay: 0.01
+
+  # Warmup + Poly LR Scheduler (E5와 동일)
+  warmup_epochs: 10
+  poly_power: 0.9
+
+  # Early stopping (val Dice 기준)
+  early_stop_patience: 20
+
+  # Checkpoint 저장 경로
+  save_dir: weights/m1_fpn_cedice_boundary
+
+# ── Loss 설정 ─────────────────────────────────────────────────────────────────
+# CombinedLoss: Total = 1.0*CE + 1.0*Dice + 0.1*Boundary (E5 설계 원칙)
+loss:
+  mode: ce+dice+boundary
+  ignore_index: 255
+  ce_weight: 1.0
+  aux_weight: 1.0            # Dice loss 가중치
+  boundary_weight: 0.1       # Boundary loss 가중치 (CE 대비 스케일 보정)

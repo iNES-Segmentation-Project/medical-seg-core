@@ -1,0 +1,59 @@
+# configs/m0_mlp_ce.yaml
+#
+# M0 실험: MLP Decoder + CrossEntropy Loss
+# 역할: 대조군 (기본 구조)
+#
+# | 실험 | Decoder | Loss | 출발 가중치        |
+# |------|---------|------|--------------------|
+# | M0   | MLP     | CE   | ImageNet (mit-b0)  |
+#
+# 실행:
+#   python train.py --config configs/m0_mlp_ce.yaml
+#   python evaluate.py --config configs/m0_mlp_ce.yaml
+
+experiment:
+  name: M0_mlp_ce
+  decoder: mlp               # MLPDecoder (SegFormer All-MLP Head)
+  loss: ce                   # CrossEntropyLoss only
+
+# ── 데이터셋 ─────────────────────────────────────────────────────────────────
+dataset:
+  name: kvasir
+  root: data/kvasir
+  num_classes: 2
+  ignore_index: 255
+  crop_size: [512, 512]
+  split_seed: 42
+
+# ── 모델 ─────────────────────────────────────────────────────────────────────
+model:
+  encoder: mit_b0            # MiT-B0 (ImageNet pretrained via HuggingFace)
+  decoder: mlp               # MLPDecoder
+  embed_dim: 256             # MLPDecoder unified channel dim
+  dropout: 0.1               # seg head 직전 Dropout2d
+
+# ── 학습 설정 ─────────────────────────────────────────────────────────────────
+train:
+  max_epochs: 100
+  batch_size: 8
+  num_workers: 4
+
+  optimizer: adamw
+  encoder_lr: 6.0e-5         # encoder: 작은 lr (pretrained 가중치 보존)
+  decoder_lr: 6.0e-4         # decoder: 10× 큰 lr (새로 학습)
+  weight_decay: 0.01
+
+  # Warmup + Poly LR Scheduler (E5와 동일)
+  warmup_epochs: 10          # linear warmup: 0 → base_lr
+  poly_power: 0.9            # poly decay exponent
+
+  # Early stopping (val Dice 기준)
+  early_stop_patience: 20    # patience 20 epoch 개선 없으면 종료
+
+  # Checkpoint 저장 경로
+  save_dir: weights/m0_mlp_ce
+
+# ── Loss 설정 ─────────────────────────────────────────────────────────────────
+loss:
+  mode: ce
+  ignore_index: 255

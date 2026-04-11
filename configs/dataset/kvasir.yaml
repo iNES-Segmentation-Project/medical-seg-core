@@ -1,0 +1,29 @@
+# configs/dataset/kvasir.yaml
+#
+# Kvasir-SEG 데이터셋 공통 설정.
+# m0_mlp_ce.yaml, m1_fpn_cedice_boundary.yaml 에서 이 값들을 참조한다.
+#
+# 참고: https://datasets.simula.no/kvasir-seg/
+#   - 모달리티 : RGB 대장내시경 (colonoscopy)
+#   - 전체 이미지: 1,000장
+#   - 클래스    : 2 (background=0, polyp=1)
+#   - Mask 형식 : pixel-level binary mask (RGB JPEG, threshold=127)
+
+dataset:
+  name: kvasir
+  root: data/kvasir          # images/, masks/ 포함 경로
+
+  num_classes: 2             # 0=background, 1=polyp
+  ignore_index: 255          # PaperlikeTransform padding 값 (void)
+
+  # ImageNet pretrain과 동일한 mean/std (encoder 사전 학습 기준)
+  mean: [0.485, 0.456, 0.406]
+  std:  [0.229, 0.224, 0.225]
+
+  crop_size: [512, 512]      # H x W — E5와 동일
+
+  # Split 설정 (M0, M1 동일하게 고정)
+  split_seed: 42             # random.shuffle seed
+  train_ratio: 0.8           # 800장
+  val_ratio:   0.1           # 100장
+  test_ratio:  0.1           # 100장

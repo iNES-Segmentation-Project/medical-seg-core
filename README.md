@@ -1,9 +1,14 @@
-# medical-seg-core
+## Project Overview
 
 SegFormer-B0 기반 General Purpose Segmentation 파이프라인의 의료 도메인 적용 실험 저장소.
 
-CamVid(도시 도메인)에서 설계 및 검증된 E5 구조(FPN + CE+Dice+Boundary)가  
+CamVid(도시 도메인)에서 설계 및 검증된 E5 구조(FPN + CE+Dice+Boundary)가
 의료 도메인(Kvasir-SEG, 대장내시경)에서도 기본 구조 대비 우위를 보이는지 검증한다.
+
+- Encoder: SegFormer-B0 구조 고정 (수정 불가)
+- Decoder: MLP (baseline) vs FPN
+- Loss: CE / CE+Dice+Boundary
+- Dataset: Kvasir-SEG (2 classes) — Train 800 / Val 100 / Test 100
 
 ---
 
@@ -17,62 +22,23 @@ CamVid(도시 도메인)에서 설계 및 검증된 E5 구조(FPN + CE+Dice+Boun
 
 ---
 
-## 실험 목적
-
-E5 구조가 **도메인에 관계없이 범용적으로 우수한 구조**임을 입증한다.
-
-```
-E5: FPN + CE+Dice+Boundary + ImageNet pretrain → CamVid 학습  (기존)
-M1: FPN + CE+Dice+Boundary + ImageNet pretrain → Kvasir 학습  (이번)
-```
-
-구조, 증강, 학습 전략은 E5와 완전히 동일하다. 차이는 학습 도메인(데이터셋)뿐이다.
-
----
-
-## 실험 구성
-
-| 실험 | Decoder | Loss | 출발 가중치 | 역할 |
-|------|---------|------|------------|------|
-| M0 | MLP | CE | ImageNet pretrain | 대조군 (기본 구조) |
-| M1 | FPN | CE + Dice + Boundary | ImageNet pretrain | 핵심 실험 (E5 구조) |
-
----
-
-## 데이터셋
-
-**Kvasir-SEG** — RGB 대장내시경 polyp segmentation 데이터셋
-
-| 항목 | 내용 |
-|------|------|
-| 전체 이미지 수 | 1,000장 |
-| 클래스 | 2 (polyp / background) |
-| Split | train 800 / val 100 / test 100 (seed=42) |
-| Mask 형식 | pixel-level binary mask |
-| 라이선스 | 연구/교육 목적 무료 |
-| 다운로드 | https://datasets.simula.no/downloads/kvasir-seg.zip |
-
----
-
-## 프로젝트 구조
+## Project Structure
 
 ```
 medical-seg-core/
-├── configs/
-│   ├── dataset/
-│   │   └── kvasir.yaml
-│   ├── m0_mlp_ce.yaml
-│   └── m1_fpn_cedice_boundary.yaml
 ├── models/
 │   ├── encoder/              # MiT-B0 (segmentation-core와 동일)
 │   ├── decoder/              # mlp.py, fpn.py
 │   └── loss/                 # ce, dice, boundary
 ├── data/
 │   ├── transforms.py         # PaperlikeTransform (segmentation-core와 동일)
-│   ├── kvasir_dataset.py     # Kvasir-SEG DataLoader
+│   ├── kvasir_dataset.py
 │   └── kvasir/
-│       ├── images/           # 1,000장 (직접 다운로드)
-│       └── masks/            # 1,000장
+│       ├── images/
+│       └── masks/
+├── configs/
+│   ├── m0_mlp_ce.yaml
+│   └── m1_fpn_cedice_boundary.yaml
 ├── train.py
 ├── evaluate.py
 └── utils/
@@ -80,69 +46,109 @@ medical-seg-core/
 
 ---
 
-## 고정 설정
-
-M0, M1 공통으로 아래 설정을 동일하게 유지한다.
-
-| 항목 | 값 |
-|------|-----|
-| Augmentation | PaperlikeTransform (E5와 동일) |
-| Scheduler | warmup_poly |
-| Optimizer | AdamW |
-| Learning Rate | encoder 6e-5 / decoder 6e-4 |
-| Max Epoch | 100 |
-| Early Stopping | patience 20 (val Dice 기준) |
-| Crop size | 512×512 |
-| 출발 가중치 | ImageNet pretrain (nvidia/mit-b0) |
-
----
-
-## 빠른 시작
-
-### 1. 데이터셋 준비
+## Setup
 
 ```bash
-# kvasir-seg.zip 다운로드 후 압축 해제
+# 1. 데이터셋 준비
 mkdir -p data/kvasir/images data/kvasir/masks
-# images/, masks/ 폴더 내용을 각각 위 경로로 이동
-```
+# kvasir-seg.zip 다운로드 후 images/, masks/ 각 경로로 이동
+# https://datasets.simula.no/downloads/kvasir-seg.zip
 
-### 2. 환경 설치
-
-```bash
+# 2. 환경 설치
 pip install torch torchvision transformers timm pyyaml
 ```
 
-### 3. 학습 실행
+---
+
+## Training & Evaluation
 
 ```bash
-# M0 (대조군)
 python train.py --config configs/m0_mlp_ce.yaml
-
-# M1 (E5 구조)
 python train.py --config configs/m1_fpn_cedice_boundary.yaml
-```
 
-### 4. 평가
-
-```bash
 python evaluate.py --config configs/m1_fpn_cedice_boundary.yaml \
                    --checkpoint weights/m1_best.pth
 ```
 
 ---
 
-## 성공 기준
+## Experiments
 
-| 판정 | 기준 |
-|------|------|
-| 도메인 전환 성공 | M1 Test Dice ≥ 0.80 |
-| 구조 범용성 확인 | M1 Test Dice > M0 Test Dice |
+| ID | Encoder | Decoder | Loss | 파라미터 수 | 역할 |
+|----|---------|---------|------|------------|------|
+| M0 | MiT-B0 | MLP | CE | 3.7M | 대조군 (기본 구조) |
+| M1 | MiT-B0 | FPN | CE+Dice+Boundary | 6.1M | 핵심 실험 (E5 구조) |
+
+변수는 구조 하나다. 출발 가중치, 증강, 학습 전략은 완전히 동일하게 고정했다.
+
+고정 설정: PaperlikeTransform / warmup_poly / AdamW / enc lr 6e-5, dec lr 6e-4 / max 100 epoch / early stopping patience 20
 
 ---
 
-## 참고 문헌
+## Results
 
-- Xie et al., SegFormer: Simple and Efficient Design for Semantic Segmentation with Transformers, NeurIPS 2021
-- Jha et al., Kvasir-SEG: A Segmented Polyp Dataset, MMM 2020
-- Lin et al., Feature Pyramid Networks for Object Detection, CVPR 2017
+### Val / Test 성능 비교
+
+| ID | Best Val Dice | Best Val Epoch | Test Dice | Test mIoU | Val→Test 변화 |
+|----|---------------|----------------|-----------|-----------|--------------|
+| M0 | 0.8998 | 70 | 0.9222 | 0.9147 | +0.0224 |
+| M1 | **0.9083** | **91** | **0.9275** | **0.9201** | +0.0192 |
+| M1 - M0 | +0.0085 | — | +0.0053 | +0.0054 | — |
+
+Val→Test 변화가 양수(+)인 것은 test 성능이 val보다 높게 나온 것이다.
+test 100장이 상대적으로 쉬운 샘플로 구성되었거나,
+val 기준 best 저장 전략이 test에서 일반화된 것으로 해석한다.
+
+### Per-class IoU (Test 기준)
+
+| 클래스 | M0 | M1 | M1 - M0 |
+|--------|----|----|---------|
+| background | 0.9737 | 0.9755 | +0.0018 |
+| polyp | 0.8557 | **0.8647** | +0.0090 |
+
+### 수렴 비교
+
+| 구분 | M0 | M1 |
+|------|----|----|
+| Val Dice 0.80 최초 달성 epoch | 5 | 4 |
+| Val Dice 0.90 최초 달성 epoch | — | 52 |
+| Best 달성 epoch | 70 | 91 |
+| Early stopping | epoch 90 발동 | 미발동 (100 epoch 완주) |
+
+### CamVid E5 vs Kvasir M1
+
+| 항목 | CamVid E5 | Kvasir M1 |
+|------|-----------|-----------|
+| 도메인 | 도시 도로 (11 class) | 대장내시경 (2 class) |
+| 구조 | FPN + CE+Dice+Boundary | 동일 |
+| 학습 전략 | warmup_poly, diff LR, PaperlikeTransform | 동일 |
+| Best Val mIoU/Dice | 0.8043 | 0.9083 |
+| Test mIoU/Dice | 0.7572 | 0.9275 |
+
+---
+
+## Key Findings
+
+**E5 구조는 의료 도메인에서도 기본 구조 대비 일관된 우위를 보인다.**
+
+Test Dice M1(0.9275) > M0(0.9222), polyp IoU M1(0.8647) > M0(0.8557).
+차이는 크지 않으나 방향성이 일치하며, CamVid에서의 결과(FPN > MLP)와 동일한 패턴이다.
+
+**도메인 전환 성공 기준(Test Dice ≥ 0.80)을 M0, M1 모두 크게 상회했다.**
+
+M0 0.9222, M1 0.9275로 기준치 대비 0.12 이상 초과.
+ImageNet pretrain encoder의 전이 학습 효과가 의료 도메인에서도 강하게 작동함을 보여준다.
+
+**E5 파이프라인은 도메인에 관계없이 재사용 가능하다.**
+
+CamVid에서 설계된 구조, 증강, 학습 전략을 그대로 Kvasir-SEG에 적용하여 합리적인 성능을 달성했다.
+config 하나만 교체하면 새 도메인에서 바로 실험 가능한 범용성이 검증되었다.
+
+---
+
+## Notes
+
+- Encoder는 SegFormer-B0와 기능적으로 동일하게 유지한다.
+- M0, M1은 구조(Decoder + Loss) 외 모든 설정을 동일하게 고정한다.
+- M1은 E5 구조의 범용성 검증 실험이며, E5와 직접 성능 비교 대상이 아니다.
+- MMSegmentation 의존성 없이 순수 PyTorch로 구현한다.
